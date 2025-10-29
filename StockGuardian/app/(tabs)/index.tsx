@@ -1,33 +1,42 @@
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity, ScrollView, StatusBar, View } from 'react-native';
-import styled from 'styled-components/native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState } from "react";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  View,
+} from "react-native";
+import styled from "styled-components/native";
+import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const onLogin = async () => {
-    router.replace('../signin');
+    router.replace("../signin");
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      Alert.alert('로그인 실패', '올바른 이메일을 입력하세요.');
+      Alert.alert("로그인 실패", "올바른 이메일을 입력하세요d.");
       return;
     }
     if (password.length < 6) {
-      Alert.alert('로그인 실패', '비밀번호는 6자 이상이어야 합니다.');
+      Alert.alert("로그인 실패", "비밀번호는 6자 이상이어야 합니다.");
       return;
     }
 
     try {
       setLoading(true);
       await new Promise((r) => setTimeout(r, 600));
-      Alert.alert('로그인 성공', `${email}님 환영합니다!`);
+      Alert.alert("로그인 성공", `${email}님 환영합니다!`);
       // router.replace('/home');
     } finally {
       setLoading(false);
@@ -38,11 +47,19 @@ export default function LoginScreen() {
   const androidOffset = (StatusBar.currentHeight ?? 0) + insets.top;
 
   return (
-    <Safe style={{ paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : insets.top }}>
+    <Safe
+      style={{
+        paddingTop:
+          Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : insets.top,
+      }}
+    >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.select({ ios: 'padding', android: 'height' })}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: androidOffset })}
+        behavior={Platform.select({ ios: "padding", android: "height" })}
+        keyboardVerticalOffset={Platform.select({
+          ios: 0,
+          android: androidOffset,
+        })}
       >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
@@ -60,7 +77,7 @@ export default function LoginScreen() {
             {/* 폼 */}
             <Form>
               <Label>
-                <Ionicons name="person" size={16} color="#C9D7F1" />  아이디
+                <Ionicons name="person" size={16} color="#C9D7F1" /> 아이디
               </Label>
               <StyledInput
                 placeholder="username or email"
@@ -72,7 +89,8 @@ export default function LoginScreen() {
               />
 
               <Label style={{ marginTop: 12 }}>
-                <Ionicons name="lock-closed" size={16} color="#C9D7F1" />  비밀번호
+                <Ionicons name="lock-closed" size={16} color="#C9D7F1" />{" "}
+                비밀번호
               </Label>
               <StyledInput
                 placeholder="••••••••"
@@ -83,20 +101,39 @@ export default function LoginScreen() {
                 returnKeyType="done"
               />
 
-              <PrimaryButton disabled={loading} onPress={onLogin} activeOpacity={0.8}>
-                <PrimaryText>{loading ? '로그인 중...' : '로그인'}</PrimaryText>
+              <PrimaryButton
+                disabled={loading}
+                onPress={onLogin}
+                activeOpacity={0.8}
+              >
+                <PrimaryText>{loading ? "로그인 중..." : "로그인"}</PrimaryText>
               </PrimaryButton>
 
-              <SecondaryButton onPress={() => Alert.alert('회원가입', '회원가입 화면으로 라우팅하세요.')}>
+              <SecondaryButton
+                onPress={() =>
+                  Alert.alert("회원가입", "회원가입 화면으로 라우팅하세요.")
+                }
+              >
                 <SecondaryText>회원가입</SecondaryText>
               </SecondaryButton>
 
               <LinksRow>
-                <LinkBtn onPress={() => Alert.alert('비밀번호 재설정', '비밀번호 찾기 플로우를 연결하세요.')}>
+                <LinkBtn
+                  onPress={() =>
+                    Alert.alert(
+                      "비밀번호 재설정",
+                      "비밀번호 찾기 플로우를 연결하세요."
+                    )
+                  }
+                >
                   <LinkText>비밀번호를 잊으셨나요?</LinkText>
                 </LinkBtn>
                 <Dot />
-                <LinkBtn onPress={() => Alert.alert('회원가입', '회원가입 화면으로 라우팅하세요.')}>
+                <LinkBtn
+                  onPress={() =>
+                    Alert.alert("회원가입", "회원가입 화면으로 라우팅하세요.")
+                  }
+                >
                   <LinkText>회원가입</LinkText>
                 </LinkBtn>
               </LinksRow>
