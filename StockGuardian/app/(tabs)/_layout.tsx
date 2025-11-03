@@ -14,30 +14,30 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarStyle: { backgroundColor: Colors[colorScheme ?? 'light'].background },
         headerShown: false,
         tabBarButton: HapticTab,
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="homepage"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: '홈',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="home-outline" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-      {/* ✅ 장바구니 탭 (필요 없으면 이 블럭을 지우세요) */}
-      <Tabs.Screen
-        name="shopping_cart"
+        name="mystock"
         options={{
           title: '장바구니',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart-outline" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="mypage"
+        options={{
+          title: '마이페이지',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person-outline" color={color} />,
         }}
       />
     </Tabs>
