@@ -16,7 +16,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       {/* 전역에서 header 숨김 */}
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: true }}>
         {/* 탭 그룹 */}
         <Stack.Screen name="(tabs)" />
         {/* 모달(원래 있던 거 유지) */}
