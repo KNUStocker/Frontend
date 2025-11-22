@@ -2,6 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -12,13 +13,54 @@ import {
   View,
 } from "react-native";
 
+const API_URL = "https://backend-production-eb97.up.railway.app/api/user/login"; 
+
 const LoginScreen: React.FC = () => {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    router.push("/(tabs)/homepage");
+  const goSignup = () => {
+    router.push("/signup");
+  }
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("입력 오류", "이메일과 비밀번호를 입력해주세요.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: email.trim(),
+          password: password.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert("로그인 실패", data.message || "아이디 또는 비밀번호를 확인해주세요.");
+        setLoading(false);
+        return;
+      }
+      console.log("로그인 성공:", data);
+
+      router.push("/(tabs)/homepage");
+    } catch (error) {
+      Alert.alert("오류", "서버와 연결할 수 없습니다.");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,14 +96,20 @@ const LoginScreen: React.FC = () => {
             />
           </View>
 
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginText}>로그인</Text>
+          <TouchableOpacity
+            style={[styles.loginButton, loading && { opacity: 0.6 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text style={styles.loginText}>
+              {loading ? "로그인 중..." : "로그인"}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>계정이 없나요?</Text>
             <TouchableOpacity>
-              <Text style={styles.footerLink}> 회원가입</Text>
+              <Text style={styles.footerLink}onPress={goSignup}> 회원가입</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

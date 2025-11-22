@@ -1,7 +1,6 @@
-// app/(tabs)/shopping_cart.tsx
-import { useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   Keyboard,
@@ -10,243 +9,270 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
-type Stock = {
-  id: string;
-  name: string;
-  domains: string[];
-  emoji: string;
-  category: string;
-  favorite?: boolean;
-  favoriteTime?: number; // 즐겨찾기 시간 기록
-};
+const API_URL = "https://backend-production-eb97.up.railway.app/user/favorites";
+const TEMP_TOKEN = "cheerhow";
 
-const STOCKS: Stock[] = [
-  { id: '1', name: '삼성전자', domains: ['samsung.com'], emoji: '💻', category: '반도체' },
-  { id: '2', name: '현대차', domains: ['hyundai.com'], emoji: '🚗', category: '자동차' },
-  { id: '3', name: '카카오', domains: ['kakaocorp.com'], emoji: '📱', category: 'IT/플랫폼' },
-  { id: '4', name: 'LG에너지솔루션', domains: ['lgensol.com'], emoji: '🔋', category: '2차전지' },
-  { id: '5', name: '포스코홀딩스', domains: ['posco.com'], emoji: '🏗️', category: '소재/철강' },
-  { id: '6', name: '셀트리온', domains: ['celltrion.com'], emoji: '💊', category: '바이오' },
-  { id: '7', name: 'NAVER', domains: ['naver.com'], emoji: '🌐', category: 'IT/포털' },
-  { id: '8', name: '하이브', domains: ['hybecorp.com'], emoji: '🎵', category: '엔터테인먼트' },
-  { id: '9', name: '삼성SDI', domains: ['samsungsdi.com'], emoji: '🔋', category: '2차전지' },
-  { id: '10', name: '기아', domains: ['kia.com', 'kia.co.kr', 'kiamotors.com'], emoji: '🏎️', category: '자동차' },
-  { id: '11', name: 'SK하이닉스', domains: ['skhynix.com'], emoji: '💾', category: '반도체' },
-  { id: '12', name: '롯데케미칼', domains: ['lottechem.com'], emoji: '⚗️', category: '화학' },
-  { id: '13', name: '신한지주', domains: ['shinhan.com'], emoji: '🏦', category: '금융' },
-  { id: '14', name: '롯데쇼핑', domains: ['lotte.com'], emoji: '🛍️', category: '유통' },
-  { id: '15', name: 'KT&G', domains: ['ktng.com'], emoji: '🏭', category: '담배/생활' },
-];
+export default function AddFavoriteScreen() {
+  const [favorites, setFavorites] = useState([]);
+  const [inputText, setInputText] = useState("");
 
-const SK_ROUTE = '/sk_demo';
-
-export default function WatchlistScreen() {
-  const router = useRouter();
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [stocks, setStocks] = useState<Stock[]>(() => {
-    // 데모용 초기 상태: 절반 즐겨찾기, SK하이닉스는 즐겨찾기 안됨
-    return STOCKS.map((s, i) => ({
-      ...s,
-      favorite: s.id === '11' ? false : i >= Math.floor(STOCKS.length / 2),
-      favoriteTime: s.id === '11' ? undefined : i >= Math.floor(STOCKS.length / 2) ? Date.now() - (STOCKS.length - i) * 1000 : undefined,
-    }));
-  });
-
-  // 검색 + 즐겨찾기 최근 순 정렬
-  const filteredData = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let filtered = stocks;
-    if (q.length > 0) {
-      filtered = stocks.filter(
-        (s) => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q)
-      );
-    }
-    // 즐겨찾기 최근 순 정렬
-    return [...filtered].sort((a, b) => {
-      if (a.favorite && b.favorite) return (b.favoriteTime || 0) - (a.favoriteTime || 0);
-      if (a.favorite) return -1;
-      if (b.favorite) return 1;
-      return 0;
-    });
-  }, [stocks, query]);
-
-  const toggleFavorite = (id: string) => {
-    setStocks((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, favorite: !s.favorite, favoriteTime: !s.favorite ? Date.now() : undefined }
-          : s
-      )
-    );
+  // === 임시 종목코드 생성 ===
+  const generateCode = (name: string) => {
+    return (
+      name
+        .split("")
+        .reduce((acc, c) => acc + c.charCodeAt(0), 0)
+        .toString() + "0"
+    ).slice(0, 6);
   };
 
-  const renderItem = useCallback(
-    ({ item }: { item: Stock }) => (
-      <StockCard
-        item={item}
-        onPress={() => {
-          if (item.name === 'SK하이닉스') router.push(SK_ROUTE);
-          else console.log(`${item.name} 클릭됨`);
-        }}
-        onFavorite={() => toggleFavorite(item.id)}
-      />
-    ),
-    [router, stocks]
-  );
+  // ============================
+  // 📌 1) 페이지 들어오면 GET 실행
+  // ============================
+  const fetchFavorites = async () => {
+    try {
+      const res = await fetch(API_URL, {
+        method: "GET",
+        headers: {
+          token: TEMP_TOKEN,
+        },
+      });
+
+      if (!res.ok) {
+        Alert.alert("오류", "관심종목 불러오기에 실패했습니다.");
+        return;
+      }
+
+      const data = await res.json();
+      // 서버에서 내려주는 형식에 맞게 매핑 (emoji/domain 임시 생성)
+      const mapped = data.map((item: any) => ({
+        corp_code: item.corp_code,
+        corp_name: item.corp_name,
+        emoji: "⭐",
+        category: "기타",
+        domains: [],
+      }));
+
+      setFavorites(mapped);
+    } catch (err) {
+      console.error(err);
+      Alert.alert("오류", "서버 연결 실패");
+    }
+  };
+
+  useEffect(() => {
+    fetchFavorites();
+  }, []);
+
+  // ======================================================
+  // 📌 2) 관심종목 담기 (POST)
+  // ======================================================
+  const onSubmit = async () => {
+    const name = inputText.trim();
+    if (!name) {
+      Alert.alert("입력 오류", "종목명을 입력해주세요.");
+      return;
+    }
+
+    const corp_code = generateCode(name);
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          token: TEMP_TOKEN,
+        },
+        body: JSON.stringify({
+          corp_code,
+          corp_name: name,
+        }),
+      });
+
+      if (!response.ok) {
+        Alert.alert("실패", "관심 종목 담기 실패");
+        return;
+      }
+
+      if (!favorites.find((f) => f.corp_code === corp_code)) {
+        setFavorites((prev) => [
+          ...prev,
+          {
+            corp_code,
+            corp_name: name,
+            emoji: "⭐",
+            category: "기타",
+            domains: [],
+          },
+        ]);
+      }
+
+      setInputText("");
+      Keyboard.dismiss();
+      Alert.alert("완료", `${name} 담기 완료!`);
+    } catch (e) {
+      Alert.alert("오류", "서버와 연결할 수 없습니다.");
+      console.error(e);
+    }
+  };
+
+  // ======================================================
+  // 📌 3) 삭제 (서버 DELETE 스펙 나오면 연결, 지금은 로컬 제거)
+  // ======================================================
+  const removeFavorite = (corp_code: string) => {
+    setFavorites((prev) => prev.filter((f) => f.corp_code !== corp_code));
+  };
 
   return (
     <View style={styles.container}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <Text style={styles.title}>관심 종목</Text>
-        <TouchableOpacity
-          onPress={() => {
-            const next = !searchOpen;
-            setSearchOpen(next);
-            if (!next) {
-              setQuery('');
-              Keyboard.dismiss();
-            }
-          }}
-        >
-          <Image
-            source={{ uri: 'https://cdn-icons-png.flaticon.com/512/149/149852.png' }}
-            style={styles.searchIcon}
-          />
+      {/* === 상단 검색 + 담기 Box === */}
+      <View style={styles.headerBox}>
+        <TextInput
+          value={inputText}
+          onChangeText={setInputText}
+          placeholder="종목명을 입력하세요"
+          placeholderTextColor="#7E889C"
+          style={styles.input}
+        />
+
+        <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
+          <Text style={styles.submitText}>담기</Text>
         </TouchableOpacity>
       </View>
 
-      {/* 검색창 */}
-      {searchOpen && (
-        <View style={styles.searchBar}>
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="종목 이름/업종 검색"
-            placeholderTextColor="#7E889C"
-            style={styles.input}
-            autoFocus
-            returnKeyType="search"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} style={styles.clearBtn}>
-              <Text style={styles.clearText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      <Text style={styles.subTitle}>담긴 종목</Text>
 
       <FlatList
-        data={filteredData}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContainer}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={<Text style={styles.emptyText}>검색 결과가 없어요.</Text>}
+        data={favorites}
+        keyExtractor={(item) => item.corp_code}
+        contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
+        renderItem={({ item }) => (
+          <StockCard
+            item={item}
+            onDelete={() => removeFavorite(item.corp_code)}
+          />
+        )}
       />
     </View>
   );
 }
 
-function StockCard({ item, onPress, onFavorite }: { item: Stock; onPress?: () => void; onFavorite?: () => void }) {
-  const [idx, setIdx] = useState(0);
-  const [allFailed, setAllFailed] = useState(false);
-  const domain = item.domains[idx];
-  const uri = domain ? `https://logo.clearbit.com/${domain}` : undefined;
+// ============ Stock Card Component ============
+function StockCard({ item, onDelete }: any) {
+  const [fail, setFail] = useState(false);
 
-  const handleError = () => {
-    if (idx < item.domains.length - 1) setIdx(idx + 1);
-    else setAllFailed(true);
-  };
+  const domain = item.domains?.[0];
+  const uri = domain ? `https://logo.clearbit.com/${domain}` : null;
 
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
+    <View style={styles.card}>
+      {/* Left area */}
       <View style={styles.left}>
         <View style={styles.iconWrap}>
-          {!allFailed && uri ? (
-            <Image source={{ uri }} style={styles.logo} resizeMode="contain" onError={handleError} />
+          {!fail && uri ? (
+            <Image
+              source={{ uri }}
+              style={styles.logo}
+              resizeMode="contain"
+              onError={() => setFail(true)}
+            />
           ) : (
             <Text style={styles.icon}>{item.emoji}</Text>
           )}
         </View>
+
         <View>
-          <Text style={styles.name}>{item.name}</Text>
+          <Text style={styles.name}>{item.corp_name}</Text>
           <Text style={styles.category}>{item.category}</Text>
         </View>
       </View>
 
-      {/* 즐겨찾기 버튼 */}
-      <TouchableOpacity onPress={onFavorite} style={styles.favoriteBtn}>
-        <Text style={{ fontSize: 20, color: item.favorite ? '#FFD700' : '#7E889C' }}>
-          {item.favorite ? '★' : '☆'}
-        </Text>
+      {/* 삭제 버튼 */}
+      <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
+        <Text style={{ color: "#f87171", fontWeight: "700" }}>삭제</Text>
       </TouchableOpacity>
-    </TouchableOpacity>
+    </View>
   );
 }
 
+/* ======================= Styles ======================= */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F1320' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: '#1E2A44',
-  },
-  title: { fontSize: 22, fontWeight: '700', color: '#E9EDF5' },
-  searchIcon: { width: 20, height: 20, tintColor: '#4F73FF' },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  container: { flex: 1, backgroundColor: "#0F1320" },
+
+  headerBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
     marginHorizontal: 16,
-    marginTop: 8,
-    backgroundColor: '#191E2C',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: "#191E2C",
+    borderRadius: 14,
+    padding: 10,
+    gap: 10,
   },
-  input: { flex: 1, color: '#E9EDF5', fontSize: 15 },
-  clearBtn: {
-    marginLeft: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: '#2A2E3A',
+
+  input: {
+    flex: 1,
+    color: "#E9EDF5",
+    fontSize: 15,
+    paddingLeft: 10,
   },
-  clearText: { color: '#E9EDF5', fontSize: 12 },
-  listContainer: { padding: 16, paddingBottom: 30 },
+
+  submitButton: {
+    backgroundColor: "#3b82f6",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+
+  submitText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+
+  subTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#E9EDF5",
+    paddingHorizontal: 16,
+    marginTop: 20,
+  },
+
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#191E2C',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#191E2C",
     borderRadius: 16,
     padding: 14,
+    marginBottom: 12,
+    justifyContent: "space-between",
   },
-  left: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+
+  left: { flexDirection: "row", alignItems: "center", gap: 14 },
+
   iconWrap: {
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: '#2A2E3A',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#2A2E3A",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  logo: { width: 36, height: 36, borderRadius: 6 },
+
+  logo: { width: 36, height: 36 },
+
   icon: { fontSize: 24 },
-  name: { fontSize: 16, fontWeight: '700', color: '#E9EDF5' },
-  category: { fontSize: 13, color: '#8B93A7', marginTop: 2 },
-  favoriteBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+
+  name: { fontSize: 16, fontWeight: "700", color: "#E9EDF5" },
+  category: { fontSize: 13, color: "#8B93A7", marginTop: 2 },
+
+  deleteBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#f87171",
   },
-  emptyText: { color: '#7E889C', textAlign: 'center', marginTop: 40, fontSize: 14 },
 });
