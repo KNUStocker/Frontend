@@ -96,8 +96,8 @@ export default function AddFavoriteScreen() {
         return;
       }
 
-      if (!favorites.find((f) => f.corp_code === corp_code)) {
-        setFavorites((prev) => [
+      if (!favorites.find((f: any) => f.corp_code === corp_code)) {
+        setFavorites((prev: any) => [
           ...prev,
           {
             corp_code,
@@ -119,10 +119,34 @@ export default function AddFavoriteScreen() {
   };
 
   // ======================================================
-  // 📌 3) 삭제 (서버 DELETE 스펙 나오면 연결, 지금은 로컬 제거)
+  // 📌 3) 삭제 (DELETE /user/favorites, body: { corp_name })
   // ======================================================
-  const removeFavorite = (corp_code: string) => {
-    setFavorites((prev) => prev.filter((f) => f.corp_code !== corp_code));
+  const removeFavorite = async (corp_name: string) => {
+    try {
+      const res = await fetch(API_URL, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          token: TEMP_TOKEN,
+        },
+        body: JSON.stringify({ corp_name }), // 🔥 Swagger 스펙 그대로
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        console.log("DELETE /user/favorites 실패:", res.status, text);
+        Alert.alert("삭제 실패", "서버에서 삭제에 실패했습니다.");
+        return;
+      }
+
+      // 서버에서 삭제 성공했을 때만 UI에서 제거
+      setFavorites((prev: any) =>
+        prev.filter((f: any) => f.corp_name !== corp_name)
+      );
+    } catch (err) {
+      console.error("DELETE /user/favorites 오류:", err);
+      Alert.alert("오류", "삭제 요청 중 문제가 발생했습니다.");
+    }
   };
 
   return (
@@ -137,7 +161,7 @@ export default function AddFavoriteScreen() {
           style={styles.input}
         />
 
-        <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
+      <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
           <Text style={styles.submitText}>담기</Text>
         </TouchableOpacity>
       </View>
@@ -146,12 +170,13 @@ export default function AddFavoriteScreen() {
 
       <FlatList
         data={favorites}
-        keyExtractor={(item) => item.corp_code}
+        keyExtractor={(item: any) => item.corp_code}
         contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
-        renderItem={({ item }) => (
+        renderItem={({ item }: any) => (
           <StockCard
             item={item}
-            onDelete={() => removeFavorite(item.corp_code)}
+            // 🔥 corp_code가 아니라 corp_name을 넘겨야 백엔드 스펙이랑 맞음
+            onDelete={() => removeFavorite(item.corp_name)}
           />
         )}
       />
@@ -160,14 +185,29 @@ export default function AddFavoriteScreen() {
 }
 
 // ============ Stock Card Component ============
+import { useRouter } from "expo-router";
+
 function StockCard({ item, onDelete }: any) {
   const [fail, setFail] = useState(false);
+  const router = useRouter();
 
   const domain = item.domains?.[0];
   const uri = domain ? `https://logo.clearbit.com/${domain}` : null;
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() =>
+        router.push({
+          pathname: "/favorite_detail",   // ⭐ 나중에 바꿀 페이지
+          params: {
+            corp_code: item.corp_code,
+            corp_name: item.corp_name,
+          },
+        })
+      }
+    >
       {/* Left area */}
       <View style={styles.left}>
         <View style={styles.iconWrap}>
@@ -190,10 +230,16 @@ function StockCard({ item, onDelete }: any) {
       </View>
 
       {/* 삭제 버튼 */}
-      <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
+      <TouchableOpacity
+        style={styles.deleteBtn}
+        onPress={(e) => {
+          e.stopPropagation();    // ⭐ 카드 클릭 이벤트 막기
+          onDelete();
+        }}
+      >
         <Text style={{ color: "#f87171", fontWeight: "700" }}>삭제</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 
