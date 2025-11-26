@@ -23,6 +23,8 @@ export default function RootLayout() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         {/* ✅ 상세 화면: /sk_demo */}
         <Stack.Screen name="sk_demo" />
+        <Stack.Screen name="mystockDetails" />
+        
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
