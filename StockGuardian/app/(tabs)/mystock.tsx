@@ -200,9 +200,9 @@ function StockCard({ item, onDelete }: any) {
       activeOpacity={0.8}
       onPress={() =>
         router.push({
-          pathname: "/favorite_detail",   // ⭐ 나중에 바꿀 페이지
+          pathname: "/mystockDetails",   // ⭐ 나중에 바꿀 페이지
           params: {
-            corp_code: item.corp_code,
+            corp_code: "cheerhow",
             corp_name: item.corp_name,
           },
         })
