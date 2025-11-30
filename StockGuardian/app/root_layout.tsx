@@ -3,30 +3,34 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-
+import { View } from 'react-native';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
-  anchor: '(tabs)', // 탭을 초기 진입점으로
+  anchor: '(tabs)',
 };
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <View style={{ flex: 1 }}>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      {/* 전역에서 header 숨김 */}
-      <Stack screenOptions={{ headerShown: true }}>
-        {/* 탭 그룹 */}
+
+      {/* ⭐ 반드시 false! 이게 핵심 */}
+      <Stack screenOptions={{ headerShown: false }}>
+
         <Stack.Screen name="(tabs)" />
-        {/* 모달(원래 있던 거 유지) */}
+
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        {/* ✅ 상세 화면: /sk_demo */}
-        <Stack.Screen name="sk_demo" />
-        <Stack.Screen name="mystockDetails" />
-        
+
+ 
+
       </Stack>
+
       <StatusBar style="auto" />
     </ThemeProvider>
+    </View>
+
   );
 }

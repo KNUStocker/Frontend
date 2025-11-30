@@ -22,6 +22,10 @@ export default function TabLayout() {
         }}
       >
         <Tabs.Screen
+          name="(details)" 
+          options={{ href: null }}   // ← 자동 라우트 숨김
+        />
+        <Tabs.Screen
           name="homepage"
           options={{
             title: '홈',
