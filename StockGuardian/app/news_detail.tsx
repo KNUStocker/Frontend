@@ -1,20 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
-import {
-  Image,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 // HTML 엔티티 디코더
 function htmlDecode(str: string): string {
   if (!str) return "";
-
   return str
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
@@ -50,49 +40,44 @@ export default function NewsDetailScreen() {
 
         <Text style={styles.headerTitle}>뉴스 상세</Text>
 
-        <View style={{ width: 28 }} /> {/* 정렬용 empty space */}
+        <View style={{ width: 28 }} />
       </View>
 
-      {/* ⭐★ 핵심: ScrollView를 flex:1 wrapper로 감싸줘야 스크롤 정상 동작됨 ★⭐ */}
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* 이미지 영역 */}
-          <View style={styles.imageWrap}>
-            {image ? (
-              <Image source={{ uri: String(image) }} style={styles.image} />
-            ) : (
-              <View style={styles.emptyImage} />
-            )}
-          </View>
-
-          {/* 회사명 + 날짜 */}
-          <Text style={styles.metaText}>
-            {company} • {date}
-          </Text>
-
-          {/* 제목 */}
-          <Text style={styles.title}>{decodedTitle}</Text>
-
-          {/* 본문 */}
-          <Text style={styles.content}>{decodedContent}</Text>
-
-          {/* 원문 링크 */}
-          {link && (
-            <TouchableOpacity
-              onPress={() => Linking.openURL(String(link))}
-              style={styles.linkBtn}
-            >
-              <Text style={styles.linkText}>원문 확인하기</Text>
-            </TouchableOpacity>
+      {/* 본문 */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.imageWrap}>
+          {image ? (
+            <Image source={{ uri: String(image) }} style={styles.image} />
+          ) : (
+            <View style={styles.emptyImage} />
           )}
-        </ScrollView>
-      </View>
+        </View>
+
+        <Text style={styles.metaText}>
+          {company} • {date}
+        </Text>
+
+        <Text style={styles.title}>{decodedTitle}</Text>
+
+        <Text style={styles.content}>{decodedContent}</Text>
+
+        {link && (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(String(link))}
+            style={styles.linkBtn}
+          >
+            <Text style={styles.linkText}>원문 확인하기</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
     </View>
   );
 }
+
+/* ======================= 스타일 ======================= */
 
 const styles = StyleSheet.create({
   container: {
@@ -118,7 +103,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
 
   imageWrap: {
@@ -133,12 +118,9 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
   },
 
-  emptyImage: {
-    flex: 1,
-  },
+  emptyImage: { flex: 1 },
 
   metaText: {
     color: "#8BA1C2",
@@ -166,7 +148,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#3b82f6",
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 10,
   },
 
   linkText: {
