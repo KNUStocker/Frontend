@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert, // 📌 Alert 추가
   FlatList,
   Image,
   StyleSheet,
@@ -10,9 +11,11 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+// 📌 1. AsyncStorage 임포트
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = "https://backend-production-eb97.up.railway.app/news";
-const TEMP_TOKEN = "cheerhow";
+// const TEMP_TOKEN = "cheerhow"; // ❌ 삭제됨
 
 // ===== 서버 응답 타입 =====
 interface NewsDetail {
@@ -77,13 +80,23 @@ export default function HomeScreen() {
   const [searchOpen, setSearchOpen] = useState<boolean>(false);
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  
+  // 📌 토큰 상태 추가 (혹시 나중에 쓸 일 있을까봐)
+  const [userToken, setUserToken] = useState<string | null>(null);
 
-  // ===== 뉴스 API 호출 =====
-  const fetchNews = async () => {
+  // ===== 📌 뉴스 API 호출 (인자로 토큰을 받음) =====
+  const fetchNews = async (token: string) => {
     try {
       const res = await fetch(API_URL, {
-        headers: { token: TEMP_TOKEN },
+        headers: { token: token }, // 🔥 실제 토큰 사용
       });
+
+      if (res.status === 401) {
+          Alert.alert("인증 실패", "로그인이 만료되었습니다.");
+          // router.replace("/"); // 필요 시 로그인 화면으로 이동
+          setLoading(false);
+          return;
+      }
 
       const data: NewsResponse = await res.json();
       const parsed: NewsItem[] = [];
@@ -116,11 +129,30 @@ export default function HomeScreen() {
     }
   };
 
+  // 📌 화면 켜지면 토큰 가져오고 -> 뉴스 불러오기
   useEffect(() => {
-    fetchNews();
+    const init = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        
+        if (!token) {
+           Alert.alert("알림", "로그인 정보가 없습니다.");
+           setLoading(false);
+           return;
+        }
+
+        setUserToken(token);
+        fetchNews(token); // 🔥 토큰 넘겨서 실행
+      } catch (e) {
+        console.error("토큰 로드 실패", e);
+        setLoading(false);
+      }
+    };
+
+    init();
   }, []);
 
-  // 검색
+  // 검색 로직
   const filteredNews = useMemo(() => {
     const q = query.toLowerCase();
     if (!q) return newsList;
@@ -174,7 +206,9 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>먼저 관심 종목을 장바구니에 담아주세요!</Text>
+            <Text style={styles.emptyText}>
+              {userToken ? "표시할 뉴스가 없습니다." : "먼저 로그인을 해주세요."}
+            </Text>
           }
           renderItem={({ item }) => (
             <TouchableOpacity
