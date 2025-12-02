@@ -10,16 +10,19 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage'; // 📌 추가됨
+import { useRouter } from "expo-router"; // 📌 추가됨
 
 const API_URL = "https://backend-production-eb97.up.railway.app/user/favorites";
-const TEMP_TOKEN = "cheerhow";
 
 export default function AddFavoriteScreen() {
   const [favorites, setFavorites] = useState([]);
   const [inputText, setInputText] = useState("");
+  const [userToken, setUserToken] = useState(null); // 📌 토큰 상태 관리
+  const router = useRouter();
 
   // === 임시 종목코드 생성 ===
-  const generateCode = (name: string) => {
+  const generateCode = (name) => {
     return (
       name
         .split("")
@@ -28,17 +31,46 @@ export default function AddFavoriteScreen() {
     ).slice(0, 6);
   };
 
-  // ============================
-  // 📌 1) 페이지 들어오면 GET 실행
-  // ============================
-  const fetchFavorites = async () => {
+  // ======================================================
+  // 📌 1) 페이지 들어오면 토큰 확인 후 -> GET 실행
+  // ======================================================
+  useEffect(() => {
+    const initPage = async () => {
+      try {
+        // 1. 저장소에서 토큰 꺼내기
+        const token = await AsyncStorage.getItem('userToken');
+
+        if (!token) {
+          Alert.alert("알림", "로그인이 필요한 서비스입니다.");
+          router.replace("/"); // 로그인 화면으로 이동 (경로에 맞게 수정)
+          return;
+        }
+
+        // 2. 토큰 상태 저장 및 데이터 불러오기
+        setUserToken(token);
+        fetchFavorites(token); 
+      } catch (e) {
+        console.error("토큰 로드 실패:", e);
+      }
+    };
+
+    initPage();
+  }, []);
+
+  const fetchFavorites = async (token) => {
     try {
       const res = await fetch(API_URL, {
         method: "GET",
         headers: {
-          token: TEMP_TOKEN,
+          token: token, // 🔥 저장된 토큰 사용
         },
       });
+
+      if (res.status === 401 || res.status === 403) {
+         Alert.alert("세션 만료", "다시 로그인해주세요.");
+         router.replace("/");
+         return;
+      }
 
       if (!res.ok) {
         Alert.alert("오류", "관심종목 불러오기에 실패했습니다.");
@@ -46,8 +78,8 @@ export default function AddFavoriteScreen() {
       }
 
       const data = await res.json();
-      // 서버에서 내려주는 형식에 맞게 매핑 (emoji/domain 임시 생성)
-      const mapped = data.map((item: any) => ({
+      
+      const mapped = data.map((item) => ({
         corp_code: item.corp_code,
         corp_name: item.corp_name,
         emoji: "⭐",
@@ -62,10 +94,6 @@ export default function AddFavoriteScreen() {
     }
   };
 
-  useEffect(() => {
-    fetchFavorites();
-  }, []);
-
   // ======================================================
   // 📌 2) 관심종목 담기 (POST)
   // ======================================================
@@ -76,6 +104,11 @@ export default function AddFavoriteScreen() {
       return;
     }
 
+    if (!userToken) {
+        Alert.alert("오류", "로그인 정보가 없습니다.");
+        return;
+    }
+
     const corp_code = generateCode(name);
 
     try {
@@ -83,7 +116,7 @@ export default function AddFavoriteScreen() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          token: TEMP_TOKEN,
+          token: userToken, // 🔥 저장된 토큰 사용
         },
         body: JSON.stringify({
           corp_code,
@@ -96,8 +129,8 @@ export default function AddFavoriteScreen() {
         return;
       }
 
-      if (!favorites.find((f: any) => f.corp_code === corp_code)) {
-        setFavorites((prev: any) => [
+      if (!favorites.find((f) => f.corp_code === corp_code)) {
+        setFavorites((prev) => [
           ...prev,
           {
             corp_code,
@@ -119,32 +152,33 @@ export default function AddFavoriteScreen() {
   };
 
   // ======================================================
-  // 📌 3) 삭제 (DELETE /user/favorites, body: { corp_name })
+  // 📌 3) 삭제 (DELETE)
   // ======================================================
-  const removeFavorite = async (corp_name: string) => {
+  const removeFavorite = async (corp_name) => {
+    if (!userToken) return;
+
     try {
       const res = await fetch(API_URL, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          token: TEMP_TOKEN,
+          token: userToken, // 🔥 저장된 토큰 사용
         },
-        body: JSON.stringify({ corp_name }), // 🔥 Swagger 스펙 그대로
+        body: JSON.stringify({ corp_name }),
       });
 
       if (!res.ok) {
         const text = await res.text();
-        console.log("DELETE /user/favorites 실패:", res.status, text);
+        console.log("DELETE 실패:", res.status, text);
         Alert.alert("삭제 실패", "서버에서 삭제에 실패했습니다.");
         return;
       }
 
-      // 서버에서 삭제 성공했을 때만 UI에서 제거
-      setFavorites((prev: any) =>
-        prev.filter((f: any) => f.corp_name !== corp_name)
+      setFavorites((prev) =>
+        prev.filter((f) => f.corp_name !== corp_name)
       );
     } catch (err) {
-      console.error("DELETE /user/favorites 오류:", err);
+      console.error("DELETE 오류:", err);
       Alert.alert("오류", "삭제 요청 중 문제가 발생했습니다.");
     }
   };
@@ -161,7 +195,7 @@ export default function AddFavoriteScreen() {
           style={styles.input}
         />
 
-      <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
+        <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
           <Text style={styles.submitText}>담기</Text>
         </TouchableOpacity>
       </View>
@@ -170,12 +204,11 @@ export default function AddFavoriteScreen() {
 
       <FlatList
         data={favorites}
-        keyExtractor={(item: any) => item.corp_code}
+        keyExtractor={(item) => item.corp_code}
         contentContainerStyle={{ padding: 14, paddingBottom: 40 }}
-        renderItem={({ item }: any) => (
+        renderItem={({ item }) => (
           <StockCard
             item={item}
-            // 🔥 corp_code가 아니라 corp_name을 넘겨야 백엔드 스펙이랑 맞음
             onDelete={() => removeFavorite(item.corp_name)}
           />
         )}
@@ -184,10 +217,8 @@ export default function AddFavoriteScreen() {
   );
 }
 
-// ============ Stock Card Component ============
-import { useRouter } from "expo-router";
-
-function StockCard({ item, onDelete }: any) {
+// ============ Stock Card Component (분리된 파일에 있다면 import 해서 사용) ============
+function StockCard({ item, onDelete }) {
   const [fail, setFail] = useState(false);
   const router = useRouter();
 
@@ -200,9 +231,9 @@ function StockCard({ item, onDelete }: any) {
       activeOpacity={0.8}
       onPress={() =>
         router.push({
-          pathname: "/mystockDetails",   // ⭐ 나중에 바꿀 페이지
+          pathname: "/mystockDetails",
           params: {
-            corp_code: "cheerhow",
+            corp_code: item.corp_code, // 코드도 넘기는 게 안전함
             corp_name: item.corp_name,
           },
         })
@@ -233,7 +264,7 @@ function StockCard({ item, onDelete }: any) {
       <TouchableOpacity
         style={styles.deleteBtn}
         onPress={(e) => {
-          e.stopPropagation();    // ⭐ 카드 클릭 이벤트 막기
+          e.stopPropagation();
           onDelete();
         }}
       >

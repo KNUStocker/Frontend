@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -13,8 +13,9 @@ import {
   TextInput,
   Modal,
 } from "react-native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// API 엔드포인트 정의
+// API 엔드포인트
 const LOGOUT_API_URL = "https://backend-production-eb97.up.railway.app/api/user/logout";
 const PROFILE_UPDATE_API_URL = "https://backend-production-eb97.up.railway.app/api/user/profile";
 
@@ -27,7 +28,7 @@ interface UserProfile {
 }
 
 // ------------------------------------
-// 1. 프로필 수정 모달 컴포넌트 (외부로 분리)
+// 1. 프로필 수정 모달
 // ------------------------------------
 interface EditModalProps {
   isVisible: boolean;
@@ -104,9 +105,7 @@ const EditProfileModal: React.FC<EditModalProps> = ({
 const MyPageScreen: React.FC = () => {
   const router = useRouter();
   
-  // ------------------------------------
-  // 사용자 상태 및 로딩 상태 관리
-  // ------------------------------------
+  // 사용자 상태
   const [user, setUser] = useState<UserProfile>({
     name: "홍길동",
     email: "hong@example.com",
@@ -119,17 +118,30 @@ const MyPageScreen: React.FC = () => {
   const [editLoading, setEditLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   
-  // 수정 필드 상태
   const [newNickname, setNewNickname] = useState(user.nickname);
   const [existingPassword, setExistingPassword] = useState(""); 
+
+  // ------------------------------------
+  // 초기 데이터 로드 (토큰 체크)
+  // ------------------------------------
+  useEffect(() => {
+    const fetchMyProfile = async () => {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) {
+            // 토큰이 없으면 로그인 화면(app/index.tsx)으로 이동
+            router.replace("/"); 
+            return;
+        }
+        // TODO: 여기서 실제 프로필 정보를 서버에서 가져오는 로직 추가 가능
+    };
+    fetchMyProfile();
+  }, []);
 
 
   // ------------------------------------
   // 2. 프로필 수정 핸들러
   // ------------------------------------
-
   const handleEditProfile = () => {
-    // 모달을 열기 전에 상태를 현재 값으로 초기화
     setNewNickname(user.nickname);
     setExistingPassword("");
     setIsModalVisible(true);
@@ -146,27 +158,30 @@ const MyPageScreen: React.FC = () => {
     setEditLoading(true);
 
     try {
-      // 닉네임과 기존 비밀번호를 함께 전송
+      const token = await AsyncStorage.getItem('userToken');
+
       const response = await fetch(PROFILE_UPDATE_API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+            "Content-Type": "application/json",
+            "token": token || "" 
+        },
         body: JSON.stringify({
           nickname: trimmedNickname,
-          password: existingPassword, // 기존 비밀번호로 인증
+          password: existingPassword,
         }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        Alert.alert("수정 실패", data.message || "회원 정보 수정에 실패했습니다. 비밀번호를 확인해주세요.");
+        Alert.alert("수정 실패", data.message || "비밀번호를 확인해주세요.");
         return;
       }
       
-      // 성공 처리: 클라이언트 상태에 닉네임 업데이트
       setUser(prev => ({ ...prev, nickname: trimmedNickname }));
       
       Alert.alert("수정 완료", "닉네임이 성공적으로 업데이트되었습니다.");
-      setIsModalVisible(false); // 모달 닫기
+      setIsModalVisible(false);
       
     } catch (error) {
       Alert.alert("연결 오류", "서버와 연결할 수 없습니다.");
@@ -177,46 +192,46 @@ const MyPageScreen: React.FC = () => {
   };
 
   // ------------------------------------
-  // 3. 로그아웃 핸들러
+  // 3. 로그아웃 핸들러 (수정됨)
   // ------------------------------------
-
   const handleLogout = async () => {
+    // 로딩 표시 시작
     setLogoutLoading(true);
 
     try {
-      const response = await fetch(LOGOUT_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      // 1. 토큰 가져오기
+      const token = await AsyncStorage.getItem("userToken");
 
-      if (!response.ok) {
-        const data = await response.json();
-        console.error("서버 로그아웃 실패:", data);
-        Alert.alert("로그아웃 오류", "서버 세션 종료에 실패했습니다. 다시 시도해 주세요.");
-      } else {
-        console.log("로그아웃 성공: 서버 세션 종료 완료");
+      // 2. 서버에 로그아웃 요청 (에러나도 무시하고 진행)
+      if (token) {
+        // await를 빼서 서버 응답 기다리지 않고 바로 넘어가게 함 (속도 향상)
+        fetch(LOGOUT_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", token },
+        }).catch((err) => console.log("서버 로그아웃 패스:", err));
       }
+
+      // 3. 🔥 [핵심] 앱 내 토큰 삭제
+      await AsyncStorage.removeItem("userToken");
       
-      // 클라이언트 리디렉션 
-      Alert.alert("로그아웃 완료", "성공적으로 로그아웃되었습니다.", [
-        {
-          text: "확인",
-          onPress: () => router.replace("/"), // 로그인 화면 경로로 이동
-        },
-      ]);
-      
+      // 4. 화면 이동 (뒤로가기 방지 포함)
+      if (router.canGoBack()) {
+        router.dismissAll();
+      }
+      router.replace("/");
+
     } catch (error) {
-      Alert.alert("연결 오류", "서버와 연결할 수 없습니다.");
-      console.error(error);
-      router.replace("/"); 
+      console.error("로그아웃 에러:", error);
+      // 에러가 나도 무조건 토큰 지우고 이동
+      await AsyncStorage.removeItem("userToken");
+      router.replace("/");
     } finally {
       setLogoutLoading(false);
     }
   };
 
-
   // ------------------------------------
-  // 4. 메인 렌더링
+  // 4. 렌더링
   // ------------------------------------
   return (
     <LinearGradient
@@ -255,7 +270,7 @@ const MyPageScreen: React.FC = () => {
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
-      {/* 분리된 모달 컴포넌트를 호출하고 props 전달 */}
+      
       <EditProfileModal 
         isVisible={isModalVisible}
         isLoading={editLoading}
@@ -272,10 +287,7 @@ const MyPageScreen: React.FC = () => {
 
 export default MyPageScreen;
 
-// ------------------------------------
-// 스타일 정의 (이 부분은 변경 없음)
-// ------------------------------------
-
+// 스타일 (그대로 유지)
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   container: { flex: 1 },
@@ -323,7 +335,7 @@ const modalStyles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.7)", // 반투명 배경
+    backgroundColor: "rgba(0, 0, 0, 0.7)", 
   },
   modalView: {
     margin: 20,
