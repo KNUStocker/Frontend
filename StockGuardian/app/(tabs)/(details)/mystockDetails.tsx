@@ -16,15 +16,16 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
-// LineChart를 사용하기 위해 BarChart 대신 LineChart를 가져옵니다. (chart-kit에 포함됨)
-import { LineChart } from "react-native-chart-kit"; 
+import { LineChart } from "react-native-chart-kit";
+// 📌 MenuProvider 다시 추가!
 import {
   Menu,
   MenuOption,
   MenuOptions,
-  MenuProvider,
   MenuTrigger,
+  MenuProvider, 
 } from "react-native-popup-menu";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // -------------------- 1. API 및 데이터 타입 정의 --------------------
 const NEWS_API_URL = "https://backend-production-eb97.up.railway.app/news";
@@ -38,7 +39,6 @@ interface Article {
   content: string;
 }
 
-// [추가] history 데이터 타입
 interface InvestorHistory {
   date: string;
   personal: number;
@@ -52,7 +52,6 @@ interface InvestorData {
   institution: number;
 }
 
-// [수정] 전체 주식 데이터 타입
 interface StockData {
   company: string;
   corp_code: string;
@@ -61,11 +60,11 @@ interface StockData {
       cumulative_net: InvestorData;
       cumulative_buy: InvestorData;
       cumulative_sell: InvestorData;
-      history: InvestorHistory[]; // <-- history 추가
+      history: InvestorHistory[];
     };
   };
   gemini_output?: string;
-  analysis?: string; 
+  analysis?: string;
 }
 
 // [유틸] 금액 포맷팅 (억 단위 변환)
@@ -85,11 +84,9 @@ const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;
     const now = new Date();
-    const diff = (now.getTime() - date.getTime()) / 1000 / 60 / 60; 
-
+    const diff = (now.getTime() - date.getTime()) / 1000 / 60 / 60;
     if (diff < 1) return "방금 전";
     if (diff < 24) return `${Math.floor(diff)}시간 전`;
-    
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -109,7 +106,7 @@ export default function HomeScreen() {
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  
+
   const [newsLoading, setNewsLoading] = useState(true);
   const [articles, setArticles] = useState<Article[]>([]);
   const [newsErrorMsg, setNewsErrorMsg] = useState<string | null>(null);
@@ -117,115 +114,125 @@ export default function HomeScreen() {
   const [stockData, setStockData] = useState<StockData | null>(null);
   const [analysisText, setAnalysisText] = useState<string>("AI가 데이터를 분석 중입니다...");
 
-  // -------------------- 3. 데이터 페칭 로직 --------------------
+  // -------------------- 3. 데이터 페칭 로직 (수정됨) --------------------
   useEffect(() => {
-    // ... (fetchNews와 fetchAnalysis 로직은 동일) ...
-    if (!corpCode) {
-      setNewsLoading(false);
-      setAnalysisText("종목 정보를 불러올 수 없습니다.");
-      return;
-    }
-
-    const fetchNews = async () => {
-      try {
-        setNewsLoading(true);
-        const response = await fetch(NEWS_API_URL, {
-          method: "GET",
-          headers: {
-            "Accept": "application/json",
-            "token": corpCode,
-          },
-        });
-
-        if (!response.ok) throw new Error(`News API Error: ${response.status}`);
-
-        const data: any = await response.json(); // NewsResponse 타입 대신 any를 써서 유연하게 처리
-        const targetCompany = data.results?.find(
-          (item: any) => item.company.trim() === corpName?.trim()
-        );
-
-        if (targetCompany) {
-          setArticles(targetCompany.news);
-        } else {
-          setArticles([]);
-        }
-      } catch (err) {
-        console.error("News Fetch Error:", err);
-        setNewsErrorMsg("뉴스를 불러오는 중 오류가 발생했습니다.");
-      } finally {
+    const initPage = async () => {
+      // 1. 필수 값 체크 (수정됨: corpCode 검사 제거)
+      // 🔥 Swagger를 보니 company_name만 있으면 됨! corpCode가 없어도 통과시킴
+      if (!corpName) {
         setNewsLoading(false);
+        setAnalysisText("종목 정보가 올바르지 않습니다.");
+        return;
       }
+
+      // 2. 폰에 저장된 토큰 꺼내기
+      const userToken = await AsyncStorage.getItem('userToken');
+
+      if (!userToken) {
+        Alert.alert("알림", "로그인이 필요합니다.");
+        setNewsLoading(false);
+        setAnalysisText("로그인이 필요합니다.");
+        return;
+      }
+
+      // 3. API 호출
+      fetchNews(userToken);
+      fetchAnalysis(userToken);
     };
 
-    const fetchAnalysis = async () => {
-      try {
-        const url = `${ANALYSIS_API_URL}/${encodeURIComponent(corpName || "")}`;
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "token": corpCode,
-          },
-        });
-
-        if (!response.ok) throw new Error("Analysis API Error");
-
-        const data: StockData = await response.json();
-        setStockData(data);
-
-        const resultText = data.gemini_output || data.analysis || "분석된 내용이 없습니다.";
-        setAnalysisText(resultText);
-
-      } catch (err) {
-        console.error("Analysis Fetch Error:", err);
-        setAnalysisText(`${corpName}에 대한 상세 데이터를 불러오지 못했습니다.`);
-      }
-    };
-
-    fetchNews();
-    fetchAnalysis();
-
+    initPage();
   }, [corpCode, corpName]);
 
 
-  // -------------------- 4. Line Chart 데이터 준비 (useMemo 사용) --------------------
-  const investors = stockData?.metrics?.investors;
-  
-  // Line Chart 데이터
-  const lineChartData = useMemo(() => {
-    if (!investors?.history || investors.history.length === 0) {
-      return null;
+  // A. 뉴스 API
+  const fetchNews = async (token: string) => {
+    try {
+      setNewsLoading(true);
+      const response = await fetch(NEWS_API_URL, {
+        method: "GET",
+        headers: {
+          "Accept": "application/json",
+          "token": token, // 🔥 Header: 진짜 유저 토큰
+        },
+      });
+
+      if (!response.ok) throw new Error(`News API Error: ${response.status}`);
+
+      const data: any = await response.json();
+      const targetCompany = data.results?.find(
+        (item: any) => item.company.trim() === corpName?.trim()
+      );
+
+      setArticles(targetCompany ? targetCompany.news : []);
+    } catch (err) {
+      console.error("News Fetch Error:", err);
+      setNewsErrorMsg("뉴스를 불러오지 못했습니다.");
+    } finally {
+      setNewsLoading(false);
     }
+  };
+
+  // B. 분석 API
+  const fetchAnalysis = async (token: string) => {
+    try {
+      // 🔥 URL Path: 종목 이름
+      const url = `${ANALYSIS_API_URL}/${encodeURIComponent(corpName || "")}`;
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "token": token, // 🔥 Header: 진짜 유저 토큰
+        },
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.log("Analysis API Error:", errText);
+        throw new Error(`Analysis API Error: ${response.status}`);
+      }
+
+      const data: StockData = await response.json();
+      setStockData(data);
+
+      const resultText = data.gemini_output || data.analysis || "분석된 내용이 없습니다.";
+      setAnalysisText(resultText);
+
+    } catch (err) {
+      console.error("Analysis Fetch Error:", err);
+      setAnalysisText(`${corpName} 분석 데이터를 불러오지 못했습니다.`);
+      // 화면 안 깨지게 기본값 설정
+      setStockData({ company: corpName || "", corp_code: corpCode || "" }); 
+    }
+  };
+
+
+  // -------------------- 4. 차트 데이터 가공 --------------------
+  const investors = stockData?.metrics?.investors;
+
+  const lineChartData = useMemo(() => {
+    if (!investors?.history || investors.history.length === 0) return null;
 
     const history = investors.history;
-    const labels = history.map(item => item.date.slice(5, 10)); // 날짜만 (MM-DD)
-    
-    // 데이터가 너무 많아 X축이 복잡해지는 것을 막기 위해 5개마다 라벨을 표시합니다.
-    const sampledLabels = labels.map((label, index) => 
-        index % 5 === 0 ? label : '' 
-    );
-    
-    // 금액을 억 단위로 축소 (100,000,000)
-    const personalData = history.map(item => item.personal / 100000000);
-    const foreignerData = history.map(item => item.foreigner / 100000000);
-    const institutionData = history.map(item => item.institution / 100000000);
+    const labels = history.map(item => item.date.slice(5, 10));
+    const sampledLabels = labels.map((label, index) => index % 5 === 0 ? label : '');
 
     return {
       labels: sampledLabels,
       datasets: [
         {
-          data: personalData,
-          color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`, // 개인: 빨간색
+          data: history.map(item => item.personal / 100000000),
+          color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
           name: "개인",
         },
         {
-          data: foreignerData,
-          color: (opacity = 1) => `rgba(79, 115, 255, ${opacity})`, // 외국인: 파란색
+          data: history.map(item => item.foreigner / 100000000),
+          color: (opacity = 1) => `rgba(79, 115, 255, ${opacity})`,
           name: "외국인",
         },
         {
-          data: institutionData,
-          color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // 기관: 초록색
+          data: history.map(item => item.institution / 100000000),
+          color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
           name: "기관",
         },
       ],
@@ -234,27 +241,22 @@ export default function HomeScreen() {
   }, [investors]);
 
 
-  // -------------------- 5. 렌더링 및 스타일 --------------------
-
+  // -------------------- 5. 렌더링 --------------------
   const filteredArticles = useMemo(() => {
     const q = query.toLowerCase();
     if (!articles) return [];
     if (!q) return articles;
-    return articles.filter(
-      (a) =>
-        a.title.toLowerCase().includes(q) || a.content.toLowerCase().includes(q)
-    );
+    return articles.filter(a => a.title.toLowerCase().includes(q));
   }, [query, articles]);
 
   const handleMenuPress = (item: Article, action: 'desc' | 'link') => {
     if (action === 'desc') {
-        Alert.alert("내용 미리보기", item.content.slice(0, 200) + (item.content.length > 200 ? "..." : ""));
-    } else if (action === 'link') {
-        Linking.openURL(item.link).catch(() => Alert.alert("오류", "링크를 열 수 없습니다."));
+      Alert.alert("내용 미리보기", item.content.slice(0, 200) + "...");
+    } else {
+      Linking.openURL(item.link).catch(() => Alert.alert("오류", "링크를 열 수 없습니다."));
     }
   };
-  
-  // 차트 설정
+
   const chartConfig = {
     backgroundGradientFrom: "#1e2a44",
     backgroundGradientTo: "#1e2a44",
@@ -266,13 +268,11 @@ export default function HomeScreen() {
     fillShadowGradientTo: "#1e2a44",
   };
 
-
+  // 🔥 MenuProvider 다시 추가! skipInstanceCheck로 중복 경고 방지
   return (
-    <MenuProvider>
+    <MenuProvider skipInstanceCheck>
       <LinearGradient colors={["#0b1220", "#111a2e", "#0b1220"]} style={styles.gradient}>
         <SafeAreaView style={{ flex: 1 }}>
-          <View style={{ flex: 1 }}>
-          {/* ----------------- 헤더 ----------------- */}
           <View style={styles.headerContainer}>
             <TouchableOpacity
               style={styles.backButton}
@@ -290,38 +290,34 @@ export default function HomeScreen() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* ----------------- 뉴스 리스트 (스크롤 담당) ----------------- */}
           <FlatList
-            style={{ flex: 1 }} 
+            style={{ flex: 1 }}
             data={filteredArticles}
             keyExtractor={(item, index) => index.toString()}
             contentContainerStyle={styles.flatListContent}
             ListHeaderComponent={
               <>
-                {/* ----------------- 투자자별 매매동향 Line Chart ----------------- */}
+                {/* 차트 섹션 */}
                 <View style={styles.chartSection}>
                   <Text style={styles.sectionTitle}>📈 투자자별 일간 순매수 동향 (억 원)</Text>
-                  
+
                   {lineChartData ? (
                     <View style={{ alignItems: 'center' }}>
-                       {/* 레전드 표시 */}
                       <View style={styles.legendContainer}>
-                          {lineChartData.legend.map((name, index) => {
-                            const color = lineChartData.datasets[index].color(1);
-                            return (
-                              <View key={name} style={styles.legendItem}>
-                                <View style={[styles.legendColor, { backgroundColor: color }]} />
-                                <Text style={styles.legendText}>{name}</Text>
-                              </View>
-                            )
-                          })}
+                        {lineChartData.legend.map((name, index) => {
+                          const color = lineChartData.datasets[index].color(1);
+                          return (
+                            <View key={name} style={styles.legendItem}>
+                              <View style={[styles.legendColor, { backgroundColor: color }]} />
+                              <Text style={styles.legendText}>{name}</Text>
+                            </View>
+                          )
+                        })}
                       </View>
                       <LineChart
                         data={lineChartData}
                         width={Dimensions.get("window").width - 32}
                         height={250}
-                        yAxisLabel=""
-                        yAxisSuffix=""
                         chartConfig={chartConfig}
                         style={{ borderRadius: 16, marginVertical: 8 }}
                         bezier
@@ -329,13 +325,19 @@ export default function HomeScreen() {
                       />
                     </View>
                   ) : (
-                     <View style={[styles.loadingBox, { height: 250 }]}>
-                        <ActivityIndicator color="#4F73FF" />
-                        <Text style={styles.loadingText}>투자자 매매 동향 데이터 분석 중...</Text>
-                     </View>
+                    <View style={[styles.loadingBox, { height: 250 }]}>
+                      {analysisText === "AI가 데이터를 분석 중입니다..." ? (
+                         <>
+                            <ActivityIndicator color="#4F73FF" />
+                            <Text style={styles.loadingText}>매매 데이터 분석 중...</Text>
+                         </>
+                      ) : (
+                         <Text style={{color: '#8BA1C2'}}>차트 데이터를 불러올 수 없습니다.</Text>
+                      )}
+                    </View>
                   )}
 
-                  {/* ----------------- 상세 매매 표 ----------------- */}
+                  {/* 테이블 섹션 */}
                   {investors?.cumulative_net && (
                     <View style={styles.tableContainer}>
                       <Text style={styles.tableTitle}>누적 순매수 현황 (최근 기간)</Text>
@@ -345,7 +347,6 @@ export default function HomeScreen() {
                         <Text style={styles.th}>매도</Text>
                         <Text style={styles.th}>순매수</Text>
                       </View>
-                      
                       {/* 개인 */}
                       <View style={styles.tableRow}>
                         <Text style={[styles.td, { flex: 0.8, color: '#A3B3D1' }]}>개인</Text>
@@ -355,7 +356,6 @@ export default function HomeScreen() {
                           {formatMoney(investors.cumulative_net.personal)}
                         </Text>
                       </View>
-
                       {/* 외국인 */}
                       <View style={styles.tableRow}>
                         <Text style={[styles.td, { flex: 0.8, color: '#A3B3D1' }]}>외국인</Text>
@@ -365,7 +365,6 @@ export default function HomeScreen() {
                           {formatMoney(investors.cumulative_net.foreigner)}
                         </Text>
                       </View>
-
                       {/* 기관 */}
                       <View style={styles.tableRow}>
                         <Text style={[styles.td, { flex: 0.8, color: '#A3B3D1' }]}>기관</Text>
@@ -379,7 +378,7 @@ export default function HomeScreen() {
                   )}
                 </View>
 
-                {/* ----------------- AI 분석 내용 ----------------- */}
+                {/* AI 분석 섹션 */}
                 <Text style={styles.analysisTitle}>{corpName ? `${corpName} AI 요약` : "종목 분석"}</Text>
                 <View style={styles.analysisBox}>
                   <Text style={styles.analysisText}>{analysisText}</Text>
@@ -470,39 +469,29 @@ export default function HomeScreen() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               newsLoading ? (
-                 <View style={{ padding: 40, alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color="#4F73FF" />
-                    <Text style={{ color: "#8BA1C2", marginTop: 10 }}>로딩 중...</Text>
-                 </View>
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#4F73FF" />
+                  <Text style={{ color: "#8BA1C2", marginTop: 10 }}>로딩 중...</Text>
+                </View>
               ) : (
-                <Text style={styles.emptyText}>
-                  {newsErrorMsg ? newsErrorMsg : "관련된 최신 뉴스가 없습니다."}
-                </Text>
+                <Text style={styles.emptyText}>{newsErrorMsg || "관련된 최신 뉴스가 없습니다."}</Text>
               )
             }
           />
-          </View>
         </SafeAreaView>
       </LinearGradient>
     </MenuProvider>
   );
 }
 
-// -------------------- 스타일 --------------------
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
-  container: { flex: 1 },
-
-  // 헤더
   headerContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "",
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
   },
   backButton: {
     width: 40,
@@ -513,31 +502,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#E6EEF8" },
-
-  // 스크롤 이슈 해결을 위한 FlatList content container style
-  flatListContent: { 
-    paddingBottom: 40, // 충분한 하단 여백 추가
-    flexGrow: 1,
-  },
-  
-  // 차트 및 표 섹션
+  flatListContent: { paddingBottom: 40, flexGrow: 1 },
   chartSection: { marginVertical: 10 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#E6EEF8', marginLeft: 22, marginBottom: 4 },
-  loadingBox: { 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: 'rgba(30, 42, 68, 0.5)', 
-    marginHorizontal: 16, 
+  loadingBox: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 42, 68, 0.5)',
+    marginHorizontal: 16,
     borderRadius: 12,
     padding: 20,
     marginTop: 10
   },
   loadingText: { color: "#8BA1C2", marginTop: 10 },
-
-  // 레전드 스타일
-  legendContainer: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-around', 
+  legendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     marginHorizontal: 16,
     marginTop: 8,
     marginBottom: 8,
@@ -546,8 +526,6 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center' },
   legendColor: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
   legendText: { color: '#E6EEF8', fontSize: 13 },
-
-  // 테이블 스타일
   tableContainer: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -560,7 +538,6 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: "row", marginBottom: 8 },
   th: { flex: 1, color: "#E6EEF8", fontWeight: "bold", textAlign: "center", fontSize: 12 },
   td: { flex: 1, color: "#E6EEF8", textAlign: "center", fontSize: 12 },
-
   analysisTitle: {
     color: "#E6EEF8",
     fontSize: 16,
@@ -577,7 +554,6 @@ const styles = StyleSheet.create({
     minHeight: 80,
   },
   analysisText: { color: "#E6EEF8", fontSize: 14, lineHeight: 22 },
-
   newsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -599,11 +575,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minWidth: 150,
   },
-
   articleItem: {
     flexDirection: "row",
     justifyContent: "space-between",
-    backgroundColor: "rgba(30, 42, 68, 0.3)", 
+    backgroundColor: "rgba(30, 42, 68, 0.3)",
     borderRadius: 12,
     marginHorizontal: 16,
     padding: 12,

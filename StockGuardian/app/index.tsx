@@ -13,7 +13,9 @@ import {
   View,
 } from "react-native";
 
-const API_URL = "https://backend-production-eb97.up.railway.app/api/user/login"; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_URL = "https://backend-production-eb97.up.railway.app/api/user/login";
 
 const LoginScreen: React.FC = () => {
   const router = useRouter();
@@ -52,9 +54,23 @@ const LoginScreen: React.FC = () => {
         setLoading(false);
         return;
       }
+
       console.log("로그인 성공:", data);
 
+      // ==========================================
+      // 🔥 [수정됨] 토큰 저장 로직 추가
+      // ==========================================
+      if (data.token) {
+        // 서버에서 준 토큰을 'userToken'이라는 이름으로 폰에 저장
+        await AsyncStorage.setItem('userToken', data.token);
+        console.log("토큰 저장 완료:", data.token);
+      } else {
+        console.log("경고: 서버 응답에 토큰이 없습니다.");
+      }
+
+      // 저장 후 페이지 이동
       router.push("/(tabs)/homepage");
+      
     } catch (error) {
       Alert.alert("오류", "서버와 연결할 수 없습니다.");
       console.error(error);
@@ -108,8 +124,8 @@ const LoginScreen: React.FC = () => {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>계정이 없나요?</Text>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}onPress={goSignup}> 회원가입</Text>
+            <TouchableOpacity onPress={goSignup}>
+              <Text style={styles.footerLink}> 회원가입</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
