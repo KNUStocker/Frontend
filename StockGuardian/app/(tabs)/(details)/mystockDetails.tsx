@@ -67,11 +67,18 @@ interface StockData {
   analysis?: string;
 }
 
+// [유틸] 금액 포맷팅 (억 단위 변환)
+// [유틸] 금액 포맷팅 (억 단위 변환 + 3자리 콤마)
 const formatMoney = (amount: number) => {
-  const inUk = amount / 100000000;
-  return `${inUk.toFixed(0).toLocaleString()}억`;
+  const inUk = amount / 100000000; // 억 단위로 변환
+  const rounded = Math.round(inUk); // 소수점 반올림 (음수도 안전)
+
+  // 1,234억 이런 식으로 표기
+  return `${rounded.toLocaleString()}억`;
 };
 
+
+// [유틸] 날짜 포맷팅
 const formatDate = (dateString: string): string => {
   try {
     const date = new Date(dateString);
@@ -267,7 +274,16 @@ export default function HomeScreen() {
       <LinearGradient colors={["#0b1220", "#111a2e", "#0b1220"]} style={styles.gradient}>
         <SafeAreaView style={{ flex: 1 }}>
           <View style={styles.headerContainer}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                if (router.canGoBack()) {
+                  router.back();
+                } else {
+                  router.push("/mystock");  // 또는 "/home"
+                }
+              }}
+            >
               <Ionicons name="arrow-back" size={28} color="#E6EEF8" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>{corpName || "종목 상세"}</Text>
@@ -368,54 +384,87 @@ export default function HomeScreen() {
                   <Text style={styles.analysisText}>{analysisText}</Text>
                 </View>
 
-                {/* 뉴스 섹션 헤더 */}
-                <View style={styles.newsHeader}>
-                  <Text style={styles.newsTitle}>최신 뉴스</Text>
-                  <View style={styles.iconRow}>
-                    <TextInput
-                      value={query}
-                      onChangeText={setQuery}
-                      placeholder="기사 검색..."
-                      placeholderTextColor="#A3B3D1"
-                      style={[styles.input, { display: searchOpen ? "flex" : "none" }]}
-                      autoFocus={searchOpen}
+                {/* ----------------- 뉴스 헤더 ----------------- */}
+              <View style={styles.newsHeader}>
+                <Text style={styles.newsTitle}>최신 뉴스</Text>
+                <View style={styles.iconRow}>
+                  <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="기사 검색..."
+                    placeholderTextColor="#A3B3D1"
+                    style={[styles.input, { display: searchOpen ? "flex" : "none" }]}
+                    autoFocus={searchOpen}
+                  />
+                  <TouchableOpacity onPress={() => setSearchOpen(!searchOpen)}>
+                    <Ionicons
+                      name={searchOpen ? "close" : "search"}
+                      size={24}
+                      color="#4F73FF"
                     />
-                    <TouchableOpacity onPress={() => setSearchOpen(!searchOpen)}>
-                      <Ionicons name={searchOpen ? "close" : "search"} size={24} color="#4F73FF" />
-                    </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 </View>
+              </View>
+        
               </>
             }
-            renderItem={({ item }) => {
-              const hasImage = item.image && item.image.length > 5;
-              const imageSource = hasImage
-                ? { uri: item.image }
-                : { uri: "https://placehold.co/80x80/1e2a44/A3B3D1?text=News" };
+        renderItem={({ item }) => {
+          const hasImage = item.image && item.image.length > 5;
+          const imageSource = hasImage
+            ? { uri: item.image }
+            : { uri: "https://placehold.co/80x80/1e2a44/A3B3D1?text=News" };
 
-              return (
-                <Menu>
-                  <MenuTrigger>
-                    <TouchableOpacity
-                      style={styles.articleItem}
-                      activeOpacity={0.7}
-                      onPress={() => handleMenuPress(item, 'link')}
-                    >
-                      <View style={styles.articleText}>
-                        <Text style={styles.articleTitle} numberOfLines={2}>{item.title}</Text>
-                        <Text style={styles.articleCaption} numberOfLines={2}>{item.content.replace(/\n/g, " ")}</Text>
-                        <Text style={styles.articleMeta}>뉴스 • {formatDate(item.date)}</Text>
-                      </View>
-                      <Image source={imageSource} style={styles.articleImage} />
-                    </TouchableOpacity>
-                  </MenuTrigger>
-                  <MenuOptions>
-                    <MenuOption onSelect={() => handleMenuPress(item, 'desc')} text="내용 미리보기" />
-                    <MenuOption onSelect={() => handleMenuPress(item, 'link')} text="기사 원문 보기" />
-                  </MenuOptions>
-                </Menu>
-              );
-            }}
+          return (
+            <Menu>
+              <MenuTrigger>
+                <TouchableOpacity
+                  style={styles.articleItem}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/news_detail",
+                      params: {
+                        title: item.title,
+                        content: item.content,
+                        date: item.date,
+                        // 이 화면에서는 Article 타입에 company가 없으니까 corpName 사용
+                        company: corpName ?? "",
+                        image: item.image ?? "",
+                        link: item.link,
+                      },
+                    })
+                  }
+                >
+                  <View style={styles.articleText}>
+                    <Text style={styles.articleTitle} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.articleCaption} numberOfLines={2}>
+                      {item.content.replace(/\n/g, " ")}
+                    </Text>
+                    <Text style={styles.articleMeta}>
+                      뉴스 • {formatDate(item.date)}
+                    </Text>
+                  </View>
+                  <Image source={imageSource} style={styles.articleImage} />
+                </TouchableOpacity>
+              </MenuTrigger>
+
+              {/* 팝업 메뉴는 유지하고 싶으면 그대로 두기 */}
+              <MenuOptions>
+                <MenuOption
+                  onSelect={() => handleMenuPress(item, "desc")}
+                  text="내용 미리보기"
+                />
+                <MenuOption
+                  onSelect={() => handleMenuPress(item, "link")}
+                  text="기사 원문 보기"
+                />
+              </MenuOptions>
+            </Menu>
+          );
+        }}
+
             ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
