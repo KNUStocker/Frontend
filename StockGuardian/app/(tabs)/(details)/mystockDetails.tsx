@@ -277,11 +277,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  router.push("/mystock");  // 또는 "/home"
-                }
+                  router.push("/mystock");
               }}
             >
               <Ionicons name="arrow-back" size={28} color="#E6EEF8" />
