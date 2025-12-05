@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert, // 📌 Alert 추가
+  Alert,
   FlatList,
   Image,
   StyleSheet,
@@ -11,11 +12,8 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-// 📌 1. AsyncStorage 임포트
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = "https://backend-production-eb97.up.railway.app/news";
-// const TEMP_TOKEN = "cheerhow"; // ❌ 삭제됨
 
 // ===== 서버 응답 타입 =====
 interface NewsDetail {
@@ -77,25 +75,22 @@ function formatTime(dateStr: string): string {
 export default function HomeScreen() {
   const router = useRouter();
   const [query, setQuery] = useState<string>("");
-  const [searchOpen, setSearchOpen] = useState<boolean>(false);
   const [newsList, setNewsList] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  
-  // 📌 토큰 상태 추가 (혹시 나중에 쓸 일 있을까봐)
+
   const [userToken, setUserToken] = useState<string | null>(null);
 
-  // ===== 📌 뉴스 API 호출 (인자로 토큰을 받음) =====
+  // ===== 뉴스 API 호출 =====
   const fetchNews = async (token: string) => {
     try {
       const res = await fetch(API_URL, {
-        headers: { token: token }, // 🔥 실제 토큰 사용
+        headers: { token: token },
       });
 
       if (res.status === 401) {
-          Alert.alert("인증 실패", "로그인이 만료되었습니다.");
-          // router.replace("/"); // 필요 시 로그인 화면으로 이동
-          setLoading(false);
-          return;
+        Alert.alert("인증 실패", "로그인이 만료되었습니다.");
+        setLoading(false);
+        return;
       }
 
       const data: NewsResponse = await res.json();
@@ -129,20 +124,20 @@ export default function HomeScreen() {
     }
   };
 
-  // 📌 화면 켜지면 토큰 가져오고 -> 뉴스 불러오기
+  // 📌 앱 시작 시 토큰 읽고 뉴스 불러오기
   useEffect(() => {
     const init = async () => {
       try {
-        const token = await AsyncStorage.getItem('userToken');
-        
+        const token = await AsyncStorage.getItem("userToken");
+
         if (!token) {
-           Alert.alert("알림", "로그인 정보가 없습니다.");
-           setLoading(false);
-           return;
+          Alert.alert("알림", "로그인 정보가 없습니다.");
+          setLoading(false);
+          return;
         }
 
         setUserToken(token);
-        fetchNews(token); // 🔥 토큰 넘겨서 실행
+        fetchNews(token);
       } catch (e) {
         console.error("토큰 로드 실패", e);
         setLoading(false);
@@ -152,7 +147,7 @@ export default function HomeScreen() {
     init();
   }, []);
 
-  // 검색 로직
+  // 검색 필터
   const filteredNews = useMemo(() => {
     const q = query.toLowerCase();
     if (!q) return newsList;
@@ -167,34 +162,30 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 헤더 */}
+      
+      {/* 🔥 헤더 + 검색창 상시 표시 */}
       <View style={styles.header}>
         <Text style={styles.title}>Stock Guardian</Text>
-
-        <TouchableOpacity onPress={() => setSearchOpen(!searchOpen)}>
-          <Ionicons name="search" size={24} color="#4F73FF" />
-        </TouchableOpacity>
       </View>
 
-      {/* 검색창 */}
-      {searchOpen && (
-        <View style={styles.searchBar}>
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="뉴스 검색..."
-            placeholderTextColor="#7E889C"
-            style={styles.input}
-            autoFocus
-          />
+      {/* 검색창 항상 표시 */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color="#7E889C" style={{ marginRight: 6 }} />
 
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery("")} style={styles.clearBtn}>
-              <Text style={styles.clearText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="검색어를 입력하세요."
+          placeholderTextColor="#7E889C"
+          style={styles.input}
+        />
+
+        {query.length > 0 && (
+          <TouchableOpacity onPress={() => setQuery("")}>
+            <Text style={{ color: "#A3B3D1", fontSize: 16 }}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {loading && <Text style={styles.loadingText}>불러오는 중...</Text>}
 
@@ -261,36 +252,25 @@ const styles = StyleSheet.create({
 
   header: {
     padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     borderBottomWidth: 1,
     borderColor: "#1e2a44",
   },
 
   title: { fontSize: 22, fontWeight: "800", color: "#E6EEF8" },
 
+  // 🔥 상시 검색창 스타일
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#121b2e",
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     marginHorizontal: 16,
-    marginTop: 8,
+    marginTop: 12,
   },
 
   input: { flex: 1, color: "#E6EEF8", fontSize: 15 },
-
-  clearBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: "#2A2E3A",
-  },
-
-  clearText: { color: "#E6EEF8", fontSize: 12 },
 
   loadingText: {
     marginTop: 20,
