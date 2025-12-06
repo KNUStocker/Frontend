@@ -29,7 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // -------------------- 1. API 및 데이터 타입 정의 --------------------
 const NEWS_API_URL = "https://backend-production-eb97.up.railway.app/news";
-const ANALYSIS_API_URL = "https://backend-production-eb97.up.railway.app/ ";
+const ANALYSIS_API_URL = "https://backend-production-eb97.up.railway.app/analysis";
 
 interface Article {
   title: string;
