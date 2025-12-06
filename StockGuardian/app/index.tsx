@@ -89,9 +89,12 @@ const LoginScreen: React.FC = () => {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.wrapper}
         >
-          <Text style={styles.title}>Stock Guardian</Text>
-          <Text style={styles.subtitle}>로그인하고 서비스를 이용해보세요</Text>
-
+          <View style={styles.header}>
+            <Text style={styles.title}>Stock Guardian</Text>
+            <Text style={styles.subtitle}>
+              로그인하고 서비스를 이용해보세요
+            </Text>
+          </View>
           <View style={styles.inputContainer}>
             <TextInput
               placeholder="이메일"
@@ -144,8 +147,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 28,
   },
+  header: {
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 0,
+  minHeight: 90, // ✅ 타이틀+서브타이틀가 차지할 최소 높이
+  },
   title: {
     fontSize: 32,
+    lineHeight: 38,
     fontWeight: "800",
     color: "#E6EEF8",
     textAlign: "center",
@@ -153,6 +163,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
+    lineHeight: 38,
     color: "#8BA1C2",
     textAlign: "center",
     marginBottom: 40,
