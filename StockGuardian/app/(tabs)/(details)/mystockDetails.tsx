@@ -29,7 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // -------------------- 1. API 및 데이터 타입 정의 --------------------
 const NEWS_API_URL = "https://backend-production-eb97.up.railway.app/news";
-const ANALYSIS_API_URL = "https://backend-production-eb97.up.railway.app/analysis";
+const ANALYSIS_API_URL = "https://backend-production-eb97.up.railway.app/ ";
 
 interface Article {
   title: string;
@@ -115,10 +115,20 @@ export default function HomeScreen() {
   const [analysisText, setAnalysisText] = useState<string>("AI가 데이터를 분석 중입니다...");
 
   // -------------------- 3. 데이터 페칭 로직 (수정됨) --------------------
+// -------------------- 3. 데이터 페칭 로직 (수정됨) --------------------
   useEffect(() => {
     const initPage = async () => {
-      // 1. 필수 값 체크 (수정됨: corpCode 검사 제거)
-      // 🔥 Swagger를 보니 company_name만 있으면 됨! corpCode가 없어도 통과시킴
+      
+      // ============================================================
+      // 🔥 [핵심 수정] 새로운 종목이 들어오면 기존 데이터를 즉시 초기화
+      // ============================================================
+      setStockData(null); // 차트 및 수급 데이터 초기화
+      setArticles([]); // 뉴스 리스트 초기화
+      setAnalysisText("AI가 데이터를 분석 중입니다..."); // 분석 텍스트 초기화
+      setNewsLoading(true); // 로딩 상태 강제 시작
+      
+      
+      // 1. 필수 값 체크
       if (!corpName) {
         setNewsLoading(false);
         setAnalysisText("종목 정보가 올바르지 않습니다.");
@@ -141,7 +151,7 @@ export default function HomeScreen() {
     };
 
     initPage();
-  }, [corpCode, corpName]);
+  }, [corpCode, corpName]); // 종목 코드나 이름이 바뀌면 실행됨
 
 
   // A. 뉴스 API
